@@ -17,11 +17,11 @@ void tokenizeInput(char* inputString, char** args);
 void runningExecutable(char** args);
 int executeCommand(char* inputString, char** args);
 void changeDirectory(char** args);
+void addHistoryCommands(char* inputString);
+void history(char** args);
+void executeHistoryOffset(int offset);
 void clearHistory();
 void printHistory();
-void executeHistoryOffset(int offset);
-void history(char** args);
-void addHistoryCommands(char* inputString);
 
 int main(int argc, char *argv[]) {
 
