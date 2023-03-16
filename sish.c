@@ -6,31 +6,23 @@
 
 #define ARGS_MAX 50
 #define PATH_MAX 256
-#define HISTORY_SIZE_MAX 100
 
-char* historyCommands[HISTORY_SIZE_MAX];
-int historyCount = 0;
 
-void readInput(char** inputString, size_t* len, char** args);
+void readInput(char** inputString, size_t* len);
 void printPath();
 void tokenizeInput(char* inputString, char** args);
 void runningExecutable(char** args);
 int executeCommand(char* inputString, char** args);
-void changeDirectory(char** args);
-void addHistoryCommands(char* inputString);
-void history(char** args);
-void executeHistoryOffset(int offset);
-void clearHistory();
-void printHistory();
 
-int main(int argc, char *argv[]) {
+
+int main() {
 
     char* inputString = NULL;
     size_t len = 0;
     char* args[ARGS_MAX];
 
     while (1) {
-        readInput(&inputString, &len, args);
+        readInput(&inputString, &len);
 
         int commandStatus = executeCommand(inputString, args);
 
@@ -45,7 +37,7 @@ int main(int argc, char *argv[]) {
     }
 }
 
-void readInput(char** inputString, size_t* len, char** args) {
+void readInput(char** inputString, size_t* len) {
     printPath();
     //printf("sish> ");
 
@@ -57,7 +49,6 @@ void readInput(char** inputString, size_t* len, char** args) {
     if ((*inputString)[strlen(*inputString) - 1] == '\n') {
         (*inputString)[strlen(*inputString) - 1] = '\0';
     }
-    addHistoryCommands(*inputString);
 }
 
 void printPath() {
@@ -96,12 +87,6 @@ int executeCommand(char* inputString, char **args) {
     else if (strcmp(args[0], "exit") == 0) {
         return 2;
     }
-    else if (strcmp(args[0], "cd") == 0) {
-        changeDirectory(args);
-    }
-    else if (strcmp(args[0], "history") == 0) {
-        history(args);
-    }
     else {
         runningExecutable(args);
     }
@@ -120,63 +105,5 @@ void runningExecutable(char** args) {
     }
     else {
         waitpid(pid, NULL, 0);
-    }
-}
-
-void changeDirectory(char** args) {
-    if (args[1] == NULL || strcmp(args[1], "~") == 0) {
-        chdir(getenv("HOME"));
-    } else {
-        if (chdir(args[1]) == -1) {
-            perror("sish: cd");
-        }
-    }
-}
-
-void addHistoryCommands(char* inputString) {
-    if (historyCount == HISTORY_SIZE_MAX) {
-        free(historyCommands[0]);
-        for (int i = 1; i < HISTORY_SIZE_MAX; i++) {
-            historyCommands[i-1] = historyCommands[i];
-        }
-        historyCount--;
-    }
-    historyCommands[historyCount] = strdup(inputString);
-    historyCount++;
-}
-
-void history(char** args) {
-    if (args[1] != NULL && strcmp(args[1], "-c") == 0) {
-        clearHistory();
-    } else if (args[1] != NULL) {
-        int offset = atoi(args[1]);
-        executeHistoryOffset(offset);
-    } else {
-        printHistory();
-    }
-}
-
-void executeHistoryOffset(int offset) {
-    char* inputString;
-    char* args[ARGS_MAX];
-    if (offset >= 0 && offset < historyCount) {
-        inputString = strdup(historyCommands[offset]);
-        executeCommand(inputString ,args);
-        free(inputString);
-    } else {
-        printf("sish: history: invalid offset\n");
-    }
-}
-
-void clearHistory() {
-    for (int i = 0; i < historyCount; i++) {
-        free(historyCommands[i]);
-    }
-    historyCount = 0;
-}
-
-void printHistory() {
-    for (int i = 0; i < historyCount; i++) {
-        printf("%d %s\n", i, historyCommands[i]);
     }
 }
