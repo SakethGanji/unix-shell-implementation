@@ -8,31 +8,30 @@
 #define PATH_MAX 256
 #define HISTORY_SIZE_MAX 100
 
-void readInput(char** inputString, size_t* len);
+void readInput(char** inputString, size_t* len, char** historyCommands, int* historyCount);
 void tokenizeInput(char* inputString, char*** args, int* pipeCount);
 void changeDirectory(char*** args);
-int executeCommand(char* inputString, char*** args, int* pipeCount);
+int executeCommand(char* inputString, char*** args, int* pipeCount, char** historyCommands, int* historyCount);
 void executableCommands(char*** args, int pipeCount);
-void addHistoryCommands(char* inputString);
-void history(char*** args, int* pipeCount);
-void executeHistoryOffset(int offset, int* pipeCount);
-void clearHistory();
-void printHistory();
-
-char* historyCommands[HISTORY_SIZE_MAX];
-int historyCount = 0;
+void addHistoryCommands(char* inputString, char** historyCommands, int* historyCount);
+void history(char*** args, int* pipeCount, char** historyCommands, int* historyCount);
+void executeHistoryOffset(int offset, int* pipeCount, char** historyCommands, int* historyCount);
 
 int main() {
 
     char* inputString = NULL;
     size_t len = 0;
+
+    char* historyCommands[HISTORY_SIZE_MAX];
+    int historyCount = 0;
+
     char** args[ARGS_MAX + 1] = { NULL };
     int pipeCount = 0;
 
     while (1) {
-        readInput(&inputString, &len);
+        readInput(&inputString, &len, historyCommands, &historyCount);
 
-        int commandStatus = executeCommand(inputString, args, &pipeCount);
+        int commandStatus = executeCommand(inputString, args, &pipeCount, historyCommands, &historyCount);
 
         if (commandStatus == 1) {
             continue;
@@ -56,7 +55,7 @@ void printPath() {
     fflush(stdout);
 }
 
-void readInput(char** inputString, size_t* len) {
+void readInput(char** inputString, size_t* len, char** historyCommands, int* historyCount) {
     //printf("sish> ");
     printPath();
 
@@ -68,7 +67,7 @@ void readInput(char** inputString, size_t* len) {
     if ((*inputString)[strlen(*inputString) - 1] == '\n') {
         (*inputString)[strlen(*inputString) - 1] = '\0';
     }
-    addHistoryCommands(*inputString);
+    addHistoryCommands(*inputString, historyCommands, historyCount );
 }
 
 void tokenizeInput(char* inputString, char*** args, int* pipeCount) {
@@ -105,7 +104,7 @@ void tokenizeInput(char* inputString, char*** args, int* pipeCount) {
     *pipeCount = pipeIndex - 1;
 }
 
-int executeCommand(char* inputString, char*** args, int* pipeCount) {
+int executeCommand(char* inputString, char*** args, int* pipeCount, char** historyCommands, int* historyCount) {
     tokenizeInput(inputString, args, pipeCount);
 
     if (args[0] == NULL || args[0][0] == NULL) {
@@ -118,7 +117,7 @@ int executeCommand(char* inputString, char*** args, int* pipeCount) {
         changeDirectory(args);
     }
     else if (strcmp(args[0][0], "history") == 0) {
-        history(args, pipeCount);
+        history(args, pipeCount, historyCommands, historyCount);
     }
     else {
         executableCommands(args, *pipeCount);
@@ -126,7 +125,6 @@ int executeCommand(char* inputString, char*** args, int* pipeCount) {
 
     return 0;
 }
-
 
 void changeDirectory(char*** args) {
     if (args[0][1] == NULL || strcmp(args[0][1], "~") == 0) {
@@ -138,51 +136,43 @@ void changeDirectory(char*** args) {
     }
 }
 
-void addHistoryCommands(char* inputString) {
-    if (historyCount == HISTORY_SIZE_MAX) {
+void addHistoryCommands(char* inputString, char** historyCommands, int* historyCount) {
+    if (*historyCount == HISTORY_SIZE_MAX) {
         free(historyCommands[0]);
         for (int i = 1; i < HISTORY_SIZE_MAX; i++) {
             historyCommands[i-1] = historyCommands[i];
         }
-        historyCount--;
+        (*historyCount)--;
     }
-    historyCommands[historyCount] = strdup(inputString);
-    historyCount++;
+    historyCommands[*historyCount] = strdup(inputString);
+    (*historyCount)++;
 }
 
-void history(char*** args, int* pipeCount) {
+void history(char*** args, int* pipeCount, char** historyCommands, int* historyCount) {
     if (args[0][1] != NULL && strcmp(args[0][1], "-c") == 0) {
-        clearHistory();
+        for (int i = 0; i < *historyCount; i++) {
+            free(historyCommands[i]);
+        }
+        *historyCount = 0;
     } else if (args[0][1] != NULL) {
         int offset = atoi(args[0][1]);
-        executeHistoryOffset(offset, pipeCount);
+        executeHistoryOffset(offset, pipeCount, historyCommands, historyCount);
     } else {
-        printHistory();
+        for (int i = 0; i < *historyCount; i++) {
+            printf("%d %s\n", i, historyCommands[i]);
+        }
     }
 }
 
-void executeHistoryOffset(int offset, int* pipeCount) {
+void executeHistoryOffset(int offset, int* pipeCount, char** historyCommands, int* historyCount) {
     char* inputString;
     char** args[ARGS_MAX + 1] = { NULL };
-    if (offset >= 0 && offset < historyCount) {
+    if (offset >= 0 && offset < *historyCount) {
         inputString = strdup(historyCommands[offset]);
-        executeCommand(inputString, args, pipeCount);
+        executeCommand(inputString, args, pipeCount, historyCommands, historyCount);
         free(inputString);
     } else {
         printf("sish: history: invalid offset\n");
-    }
-}
-
-void clearHistory() {
-    for (int i = 0; i < historyCount; i++) {
-        free(historyCommands[i]);
-    }
-    historyCount = 0;
-}
-
-void printHistory() {
-    for (int i = 0; i < historyCount; i++) {
-        printf("%d %s\n", i, historyCommands[i]);
     }
 }
 
