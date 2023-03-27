@@ -10,15 +10,16 @@
 
 void readInput(char** inputString, size_t* len, char** historyCommands, int* historyCount);
 void tokenizeInput(char* inputString, char*** args, int* pipeCount);
-void changeDirectory(char*** args);
 int executeCommand(char* inputString, char*** args, int* pipeCount, char** historyCommands, int* historyCount);
 void executableCommands(char*** args, int pipeCount);
+void changeDirectory(char*** args);
 void addHistoryCommands(char* inputString, char** historyCommands, int* historyCount);
 void history(char*** args, int* pipeCount, char** historyCommands, int* historyCount);
 void executeHistoryOffset(int offset, int* pipeCount, char** historyCommands, int* historyCount);
 
-int main() {
 
+//runs an infinite loop that reads the input from the user, executes the command, and repeats.
+int main() {
     char* inputString = NULL;
     size_t len = 0;
 
@@ -33,16 +34,17 @@ int main() {
 
         int commandStatus = executeCommand(inputString, args, &pipeCount, historyCommands, &historyCount);
 
-        if (commandStatus == 1) {
+        if (commandStatus == 1) { //if the command is empty,
             continue;
         }
-        else if (commandStatus == 2) {
+        else if (commandStatus == 2) { //if the command is exit,
             free(inputString);
             exit(EXIT_SUCCESS);
         }
     }
 }
 
+//prints the current working directory
 void printPath() {
     char cwd[PATH_MAX];
     if (getcwd(cwd, sizeof(cwd)) != NULL) {
@@ -55,11 +57,12 @@ void printPath() {
     fflush(stdout);
 }
 
+//reads the input string from the user, stores it in inputString. It adds the command to the historyCommands array
 void readInput(char** inputString, size_t* len, char** historyCommands, int* historyCount) {
-    //printf("sish> ");
-    printPath();
+    printf("sish> ");
+    //printPath();
 
-    if (getline(inputString, len, stdin) == -1) {
+    if (getline(inputString, len, stdin) == -1) { //if the input is empty
         perror("getline");
         exit(EXIT_FAILURE);
     }
@@ -70,6 +73,7 @@ void readInput(char** inputString, size_t* len, char** historyCommands, int* his
     addHistoryCommands(*inputString, historyCommands, historyCount );
 }
 
+//tokenizes the input string into multiple arguments, separated by whitespace or pipes. each argument in the args array and counts the number of pipes in the input
 void tokenizeInput(char* inputString, char*** args, int* pipeCount) {
     char* inputToken;
     char* inputSavePtr;
@@ -80,7 +84,7 @@ void tokenizeInput(char* inputString, char*** args, int* pipeCount) {
     char* pipeSavePtr;
 
     pipeToken = strtok_r(inputString, "|", &pipeSavePtr);
-    while (pipeToken != NULL) {
+    while (pipeToken != NULL) { //for each pipe
         args[pipeIndex] = malloc(sizeof(char*) * (ARGS_MAX + 1));
 
         if (args[pipeIndex] == NULL) {
@@ -90,7 +94,7 @@ void tokenizeInput(char* inputString, char*** args, int* pipeCount) {
 
         argsIndex = 0;
         inputToken = strtok_r(pipeToken, " \t\n", &inputSavePtr);
-        while (inputToken != NULL) {
+        while (inputToken != NULL) { //for each argument - " "
             args[pipeIndex][argsIndex] = inputToken;
             inputToken = strtok_r(NULL, " \t\n", &inputSavePtr);
             argsIndex++;
@@ -104,30 +108,36 @@ void tokenizeInput(char* inputString, char*** args, int* pipeCount) {
     *pipeCount = pipeIndex - 1;
 }
 
+//executes the command in args and calls functions to handle built-in commands if match
 int executeCommand(char* inputString, char*** args, int* pipeCount, char** historyCommands, int* historyCount) {
     tokenizeInput(inputString, args, pipeCount);
 
-    if (args[0] == NULL || args[0][0] == NULL) {
+    if (args[0] == NULL || args[0][0] == NULL) { //if the command is empty
         return 1;
     }
-    else if (strcmp(args[0][0], "exit") == 0) {
+    else if (strcmp(args[0][0], "exit") == 0) { //if the command is exit
         return 2;
     }
-    else if (strcmp(args[0][0], "cd") == 0) {
+    else if (strcmp(args[0][0], "cd") == 0) { //if the command is cd
         changeDirectory(args);
     }
-    else if (strcmp(args[0][0], "history") == 0) {
+    else if (strcmp(args[0][0], "history") == 0) { //if the command is history
         history(args, pipeCount, historyCommands, historyCount);
     }
-    else {
+    else { //if the command is not built-in
         executableCommands(args, *pipeCount);
     }
+
 
     return 0;
 }
 
+//changes working directory to the one specified in the args array
 void changeDirectory(char*** args) {
-    if (args[0][1] == NULL || strcmp(args[0][1], "~") == 0) {
+    if (args[0][1] == NULL){
+        fprintf(stderr, "sish: no argument given\n");
+    }
+    else if ( strcmp(args[0][1], "~") == 0) { //if no directory is specified, change to home directory
         chdir(getenv("HOME"));
     } else {
         if (chdir(args[0][1]) == -1) {
@@ -136,34 +146,37 @@ void changeDirectory(char*** args) {
     }
 }
 
+// the input string to the historyCommands array and removes the oldest command if the array is full.
 void addHistoryCommands(char* inputString, char** historyCommands, int* historyCount) {
-    if (*historyCount == HISTORY_SIZE_MAX) {
+    if (*historyCount > HISTORY_SIZE_MAX) { //if the history is full
         free(historyCommands[0]);
         for (int i = 1; i < HISTORY_SIZE_MAX; i++) {
-            historyCommands[i-1] = historyCommands[i];
+            historyCommands[i-1] = strdup(historyCommands[i]);
         }
         (*historyCount)--;
     }
-    historyCommands[*historyCount] = strdup(inputString);
+    historyCommands[*historyCount] = strdup(inputString); //adds the input string to the historyCommands array
     (*historyCount)++;
 }
 
+//prints the history of commands. If the first argument is -c, it clears the history. If an offset is specified, it prints the command at that offset.
 void history(char*** args, int* pipeCount, char** historyCommands, int* historyCount) {
-    if (args[0][1] != NULL && strcmp(args[0][1], "-c") == 0) {
+    if (args[0][1] != NULL && strcmp(args[0][1], "-c") == 0) { //if the first argument is -c
         for (int i = 0; i < *historyCount; i++) {
             free(historyCommands[i]);
         }
         *historyCount = 0;
-    } else if (args[0][1] != NULL) {
+    } else if (args[0][1] != NULL) { //if an offset is specified
         int offset = atoi(args[0][1]);
         executeHistoryOffset(offset, pipeCount, historyCommands, historyCount);
     } else {
-        for (int i = 0; i < *historyCount; i++) {
+        for (int i = 0; i < *historyCount; i++) { //if no arguments are specified
             printf("%d %s\n", i, historyCommands[i]);
         }
     }
 }
 
+//executes the command at the specified offset in the historyCommands array
 void executeHistoryOffset(int offset, int* pipeCount, char** historyCommands, int* historyCount) {
     char* inputString;
     char** args[ARGS_MAX + 1] = { NULL };
@@ -176,11 +189,12 @@ void executeHistoryOffset(int offset, int* pipeCount, char** historyCommands, in
     }
 }
 
+//runs multiple commands in a pipeline
 void executableCommands(char*** args, int pipeCount) {
     int fds[pipeCount][2];
 
     for (int i = 0; i < pipeCount; i++) {
-        if (pipe(fds[i]) == -1) {
+        if (pipe(fds[i]) == -1) { // create pipes
             perror("pipe");
             exit(EXIT_FAILURE);
         }
@@ -189,19 +203,19 @@ void executableCommands(char*** args, int pipeCount) {
     int pid;
     for (int i = 0; i <= pipeCount; i++) {
 
-        if ((pid = fork()) == -1) {
+        if ((pid = fork()) == -1) { // create child process
             perror("fork");
             exit(EXIT_FAILURE);
         }
-        else if (pid == 0) {
-            if (i > 0) {
+        else if (pid == 0) { // child process
+            if (i > 0) { // if not first command
                 if (dup2(fds[i-1][0], STDIN_FILENO) == -1) {
                     perror("dup2");
                     exit(EXIT_FAILURE);
                 }
             }
 
-            if (i < pipeCount) {
+            if (i < pipeCount) { // if not last command
                 if (dup2(fds[i][1], STDOUT_FILENO) == -1) {
                     perror("dup2");
                     exit(EXIT_FAILURE);
@@ -219,7 +233,7 @@ void executableCommands(char*** args, int pipeCount) {
                     exit(EXIT_FAILURE);
                 }
             }
-
+            // execute command
             if (execvp(args[i][0], args[i]) == -1) {
                 perror("execvp");
                 exit(EXIT_FAILURE);
